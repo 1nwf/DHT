@@ -1,29 +1,34 @@
-use std::time::Instant;
-
 use crate::{guid::GUID, node::Location};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MessageType {
     Terminate,
     Request(Request),
     Response(Response),
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     Ping,
     FindNode(GUID),
     Store(String, String),
-    GetValue(String),
+    FindValue(String),
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Response {
     Pong,
-    FindNode(Location),
-    GetValue(Option<String>),
+    FindNode(Vec<Location>),
+    Store,
+    FindValue(FindValue),
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum FindValue {
+    Value(String),
+    ClosestNodes(Vec<Location>),
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     pub id: String,
     pub dist: Location,
@@ -32,7 +37,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new(msg: MessageType, source: Location, dist: Location) -> Self {
+    pub fn new_req(msg: MessageType, source: Location, dist: Location) -> Self {
         Self {
             id: GUID::new(format!(
                 "{}:{}:{:?}",
@@ -41,6 +46,15 @@ impl Message {
                 Local::now().timestamp_millis()
             ))
             .to_hex(),
+            dist,
+            source,
+            msg,
+        }
+    }
+
+    pub fn new_res(req_id: String, msg: MessageType, source: Location, dist: Location) -> Self {
+        Self {
+            id: req_id,
             dist,
             source,
             msg,
