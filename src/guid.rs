@@ -1,7 +1,6 @@
-use std::io::Write;
-
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
+use std::io::Write;
 
 pub const GUID_LEN: usize = 32; // 256 bytes
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,21 +22,44 @@ impl GUID {
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
+
+    pub fn from_hex(hex_str: String) -> Self {
+        let mut data = [0u8; GUID_LEN];
+        let decoded_hex = hex::decode(hex_str).unwrap();
+        for (idx, val) in decoded_hex.iter().enumerate() {
+            data[idx] = *val;
+        }
+        Self(data)
+    }
 }
 
-#[derive(Debug)]
-pub struct Distance(pub [u8; GUID_LEN]);
+impl From<&str> for GUID {
+    fn from(data: &str) -> Self {
+        Self::new(data.to_string())
+    }
+}
 
-impl Distance {
-    pub fn calc(a: &GUID, b: &GUID) -> Self {
+pub trait Distance {
+    fn distance_from(&self, b: &Self) -> [u8; GUID_LEN];
+}
+
+impl Distance for GUID {
+    fn distance_from(&self, b: &Self) -> [u8; GUID_LEN] {
         let mut res = [0; GUID_LEN];
-        for (i, val) in a.0.iter().enumerate() {
+        for (i, val) in self.0.iter().enumerate() {
             res[i] = val ^ b.0[i]
         }
-        Distance(res)
-    }
 
-    pub fn get_bucket_idx() -> usize {
-        todo!()
+        res
+    }
+}
+
+impl Distance for [u8; GUID_LEN] {
+    fn distance_from(&self, b: &Self) -> [u8; GUID_LEN] {
+        let mut res = [0; GUID_LEN];
+        for (i, val) in self.iter().enumerate() {
+            res[i] = val ^ b[i]
+        }
+        res
     }
 }
