@@ -34,25 +34,36 @@ impl Rpc {
     }
 
     pub fn listen(rpc: Rpc, sender: Sender<Message>) {
-        thread::spawn(move || loop {
+        thread::spawn(move || {
             let mut buff = [0u8; 4096];
-            let (n, _) = rpc.socket.recv_from(&mut buff).unwrap();
-            let msg: Message = bincode::deserialize(&buff[..n]).unwrap();
-            match msg.msg {
-                MessageType::Terminate => todo!(),
-                MessageType::Request(_) => {
-                    sender.send(msg.clone()).unwrap();
-                }
-                MessageType::Response(res) => {
-                    let ps = Arc::clone(&rpc.pending);
-                    let mut pending = ps.lock().unwrap();
-                    let p_sender = pending.get(&msg.id);
-
-                    if let Some(psender) = p_sender {
-                        psender.send(Some(res)).expect("failed to send to channel");
-                        pending.remove(&msg.id);
+            loop {
+                let (n, _) = rpc.socket.recv_from(&mut buff).unwrap();
+                let msg: Message = bincode::deserialize(&buff[..n]).unwrap();
+                println!("received message: {}", msg);
+                match msg.msg {
+                    MessageType::Terminate => {
+                        sender.send(msg).unwrap();
+                        break;
+                    }
+                    MessageType::Request(ref req) => {
+                        sender.send(msg.clone()).unwrap();
+                    }
+                    MessageType::Response(res) => {
+                        rpc.clone().response_handler(res, msg.id);
                     }
                 }
+            }
+        });
+    }
+
+    fn response_handler(self, response: Response, req_id: String) {
+        println!("{:?}", response);
+        thread::spawn(move || {
+            let mut pending = self.pending.lock().unwrap();
+            let sender = pending.get(&req_id);
+            if let Some(sender) = sender {
+                sender.send(Some(response)).unwrap();
+                pending.remove(&req_id);
             }
         });
     }
@@ -89,9 +100,5 @@ impl Rpc {
         } else {
             Err(anyhow::anyhow!("failed to send msg"))
         }
-    }
-
-    pub fn get_location(&self) -> Location {
-        self.location.clone()
     }
 }
