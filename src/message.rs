@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{guid::GUID, node::Location};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,7 @@ pub enum Request {
     FindNode(GUID),
     Store(String, String),
     FindValue(String),
+    Join,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Response {
@@ -21,6 +24,7 @@ pub enum Response {
     FindNode(Vec<Location>),
     Store,
     FindValue(FindValue),
+    Join,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FindValue {
@@ -59,5 +63,15 @@ impl Message {
             source,
             msg,
         }
+    }
+}
+
+impl Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "msg {:?} from {} to {}",
+            self.msg, self.source.port, self.dist.port
+        )
     }
 }
