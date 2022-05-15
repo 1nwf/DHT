@@ -5,4 +5,5 @@ pub trait Protocol {
     fn store(&mut self, key: String, val: String, dist: Location) -> anyhow::Result<()>;
     fn find_node(&self, id: GUID, dist: Location) -> Option<Vec<Location>>;
     fn find_value(&self, key: String, dist: Location) -> FindValue;
+    fn join(&mut self, dist: Location) -> bool;
 }
