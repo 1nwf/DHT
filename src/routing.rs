@@ -1,6 +1,10 @@
+use sha2::digest::typenum::private::IsLessPrivate;
+
 use crate::{
+    find_val,
     guid::{Distance, GUID, GUID_LEN},
-    node::{Location, BUCKET_LEN},
+    node::{self, Location, BUCKET_LEN},
+    util::leading_zeros,
 };
 
 #[derive(Clone, Debug)]
@@ -87,15 +91,11 @@ impl Bucket {
     }
 
     pub fn find_index(id: &GUID, node_id: &GUID) -> usize {
-        let dist = node_id.distance_from(id);
-        let diff = dist.distance_from(&node_id.0);
+        let dist = Distance::calc(id, node_id);
 
-        for i in 0..GUID_LEN {
-            for j in (0..8).rev() {
-                let bit = diff[i] & (1 << j);
-                if bit != 0 {
-                    return 8 * i + j;
-                }
+        for (idx, val) in dist.0.iter().enumerate() {
+            if *val != 0 {
+                return idx * 8 + leading_zeros(*val);
             }
         }
 
@@ -113,4 +113,23 @@ impl Bucket {
     fn is_full(&self) -> bool {
         self.0.len() >= BUCKET_SIZE
     }
+}
+
+#[test]
+fn test_bucket_idx() {
+    let id1 = GUID([0; GUID_LEN]);
+    let mut id2 = GUID([0; GUID_LEN]);
+    assert_eq!(Bucket::find_index(&id1, &id2), 255);
+
+    id2 = GUID([1; GUID_LEN]);
+    assert_eq!(Bucket::find_index(&id1, &id2), 7);
+
+    id2 = GUID([128; GUID_LEN]);
+    assert_eq!(Bucket::find_index(&id1, &id2), 0);
+
+    id2 = GUID([4; GUID_LEN]);
+    assert_eq!(Bucket::find_index(&id1, &id2), 5);
+
+    id2 = GUID([8; GUID_LEN]);
+    assert_eq!(Bucket::find_index(&id1, &id2), 4);
 }
