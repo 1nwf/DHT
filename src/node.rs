@@ -6,7 +6,6 @@ use crate::{
     routing::RoutingTable,
     rpc::{Rpc, CONCCURENT_REQS},
 };
-use anyhow::Ok;
 use crossbeam_channel::Receiver;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,7 +19,7 @@ use super::guid::GUID;
 
 pub const BUCKET_LEN: usize = GUID_LEN * 8;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Location {
     pub id: GUID,
     pub ip: String,
@@ -106,9 +105,9 @@ impl Node {
         let req_type = cast!(req.msg, MessageType::Request);
         let res: MessageType = match req_type {
             Request::Ping => self.handle_ping(),
-            Request::FindNode(id) => self.handle_find_node(id),
+            Request::FindNode(id) => self.handle_find_node(id, &req.source),
             Request::Store(key, val) => self.handle_store(key, val),
-            Request::FindValue(key) => self.handle_find_value(key),
+            Request::FindValue(key) => self.handle_find_value(key, &req.source),
             Request::Join => self.handle_join(req.source.clone()),
         };
 
@@ -125,12 +124,15 @@ impl Node {
         MessageType::Response(Response::Store)
     }
 
-    pub fn handle_find_value(&self, key: String) -> MessageType {
+    pub fn handle_find_value(&self, key: String, source: &Location) -> MessageType {
         if let Some(val) = self.db.lock().unwrap().get(&key) {
             MessageType::Response(Response::FindValue(FindValue::Value(val.clone())))
         } else {
             let nodes = cast!(
-                cast!(self.handle_find_node(GUID::new(key)), MessageType::Response),
+                cast!(
+                    self.handle_find_node(GUID::new(key), source),
+                    MessageType::Response
+                ),
                 Response::FindNode
             );
             MessageType::Response(Response::FindValue(FindValue::ClosestNodes(nodes)))
@@ -147,8 +149,49 @@ impl Node {
         self.transport.location.clone()
     }
 
-    pub fn handle_find_node(&self, key: GUID) -> MessageType {
-        todo!()
+    pub fn handle_find_node(&self, key: GUID, source: &Location) -> MessageType {
+        let mut result = Vec::new();
+
+        let rt = self.routing_table.lock().unwrap();
+
+        let cn = rt.nearest_nodes_to_id(&self.id(), &key);
+
+        drop(rt);
+
+        let mut closest_nodes = Vec::new();
+        closest_nodes.extend(cn);
+
+        while !closest_nodes.is_empty() {
+            let mut querying = Vec::new();
+            let mut threads = Vec::new();
+            let mut rpc_results = Vec::new();
+
+            for _ in 0..CONCCURENT_REQS {
+                match closest_nodes.pop() {
+                    Some(node) => {
+                        if node != *source {
+                            querying.push(node.clone());
+                            let rpc = self.clone();
+                            threads.push(thread::spawn(move || rpc.find_node(key, node)));
+                        }
+                    }
+                    None => break,
+                }
+            }
+
+            for t in threads {
+                rpc_results.push(t.join().unwrap());
+            }
+
+            for (nodes_found, queried_node) in rpc_results.iter().zip(querying) {
+                if let Some(nodes) = nodes_found {
+                    result.push(queried_node);
+                    closest_nodes.extend(nodes.clone());
+                }
+            }
+        }
+
+        MessageType::Response(Response::FindNode(result))
     }
 
     pub fn handle_join(&mut self, dist: Location) -> MessageType {
@@ -181,7 +224,7 @@ impl Protocol for Node {
                     .lock()
                     .unwrap()
                     .remove(&self.transport.location.id, &dist.id);
-                Err(anyhow::anyhow!("dead node"))
+                Err(anyhow::anyhow!("dead node, {}", dist.port))
             }
         }
     }
