@@ -1,9 +1,6 @@
-use sha2::digest::typenum::private::IsLessPrivate;
-
 use crate::{
-    find_val,
     guid::{Distance, GUID, GUID_LEN},
-    node::{self, Location, BUCKET_LEN},
+    node::{Location, BUCKET_LEN},
     util::leading_zeros,
 };
 
@@ -22,33 +19,24 @@ impl RoutingTable {
     }
 
     pub fn nearest_nodes_to_id(&self, node_id: &GUID, id: &GUID) -> Vec<Location> {
-        let mut idx = Bucket::find_index(node_id, id);
-        let mut closest_nodes = Vec::with_capacity(BUCKET_SIZE);
-        let mut idx_copy = idx;
+        let idx = Bucket::find_index(node_id, id);
+        let mut closest_nodes = Vec::new();
+        closest_nodes.extend(self.0[idx].0.clone());
 
-        while closest_nodes.len() != BUCKET_SIZE && idx < self.0.len() - 1 {
-            idx += 1;
-            let bucket = &self.0[idx];
-            for node in &bucket.0 {
-                closest_nodes.push(node.clone());
-                if closest_nodes.len() == BUCKET_SIZE {
-                    break;
-                }
+        if closest_nodes.len() < BUCKET_SIZE {
+            for i in (idx + 1)..self.0.len() {
+                closest_nodes.extend(self.0[i].0.clone())
             }
         }
 
-        idx = idx_copy;
-
-        while closest_nodes.len() != BUCKET_SIZE && idx > 0 {
-            let bucket = &self.0[idx];
-            for node in &bucket.0 {
-                closest_nodes.push(node.clone());
-                if closest_nodes.len() == BUCKET_SIZE {
-                    break;
-                }
+        if closest_nodes.len() < BUCKET_SIZE {
+            for i in (0..idx) {
+                closest_nodes.extend(self.0[i].0.clone())
             }
-            idx -= 1
         }
+
+        closest_nodes.sort();
+        closest_nodes.truncate(BUCKET_SIZE);
 
         closest_nodes
     }
