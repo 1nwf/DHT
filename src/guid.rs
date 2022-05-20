@@ -3,7 +3,7 @@ use sha2::Digest;
 use std::io::Write;
 
 pub const GUID_LEN: usize = 32; // 256 bytes
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, Copy)]
 pub struct GUID(pub [u8; GUID_LEN]);
 
 impl GUID {
@@ -39,27 +39,14 @@ impl From<&str> for GUID {
     }
 }
 
-pub trait Distance {
-    fn distance_from(&self, b: &Self) -> [u8; GUID_LEN];
-}
-
-impl Distance for GUID {
-    fn distance_from(&self, b: &Self) -> [u8; GUID_LEN] {
-        let mut res = [0; GUID_LEN];
-        for (i, val) in self.0.iter().enumerate() {
-            res[i] = val ^ b.0[i]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub struct Distance(pub [u8; GUID_LEN]);
+impl Distance {
+    pub fn calc(id1: &GUID, id2: &GUID) -> Self {
+        let mut dist = [0; GUID_LEN];
+        for ((idx, v1), v2) in id1.0.iter().enumerate().zip(id2.0) {
+            dist[idx] = v1 ^ v2
         }
-
-        res
-    }
-}
-
-impl Distance for [u8; GUID_LEN] {
-    fn distance_from(&self, b: &Self) -> [u8; GUID_LEN] {
-        let mut res = [0; GUID_LEN];
-        for (i, val) in self.iter().enumerate() {
-            res[i] = val ^ b[i]
-        }
-        res
+        Self(dist)
     }
 }
