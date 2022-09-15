@@ -67,9 +67,6 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn print_routing(&self) {
-        self.routing_table.lock().unwrap().print_buckets()
-    }
     pub fn new(location: Location, bootstrap: Option<Location>) -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
 
@@ -136,12 +133,6 @@ impl Node {
                 Response::FindNode
             );
             MessageType::Response(Response::FindValue(FindValue::ClosestNodes(nodes)))
-        }
-    }
-
-    pub fn print_store(&self) {
-        for (key, val) in self.db.lock().unwrap().iter() {
-            println!("{key}: {val}");
         }
     }
 
@@ -255,24 +246,14 @@ impl Protocol for Node {
         let msg = Message::new_req(
             MessageType::Request(Request::FindNode(id)),
             self.location(),
-            dist.clone(),
+            dist,
         );
         match self.transport.send_request(msg).recv().unwrap() {
             Some(res) => {
                 let val = cast!(res, Response::FindNode);
-                self.routing_table
-                    .lock()
-                    .unwrap()
-                    .insert(self.location().id, dist);
                 Some(val)
             }
-            None => {
-                self.routing_table
-                    .lock()
-                    .unwrap()
-                    .remove(&self.transport.location.id, &dist.id);
-                None
-            }
+            None => None,
         }
     }
 

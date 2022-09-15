@@ -19,7 +19,7 @@ impl GUID {
 
         Self(hash)
     }
-    pub fn to_hex(&self) -> String {
+    pub fn to_hex(self) -> String {
         hex::encode(self.0)
     }
 

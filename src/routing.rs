@@ -11,7 +11,7 @@ impl RoutingTable {
     pub fn new() -> Self {
         let mut buckets = Vec::new();
 
-        for i in 0..BUCKET_LEN {
+        for _ in 0..BUCKET_LEN {
             buckets.push(Bucket::new())
         }
 
@@ -30,7 +30,7 @@ impl RoutingTable {
         }
 
         if closest_nodes.len() < BUCKET_SIZE {
-            for i in (0..idx) {
+            for i in 0..idx {
                 closest_nodes.extend(self.0[i].0.clone())
             }
         }
@@ -45,25 +45,17 @@ impl RoutingTable {
         let bucket_idx = Bucket::find_index(&id, &node_location.id);
         let bucket = &mut self.0[bucket_idx];
         if !bucket.is_full() {
+            if bucket.0.iter().any(|x| *x == node_location) {
+                return;
+            }
             bucket.insert(node_location);
         }
-    }
-
-    pub fn print_buckets(&self) {
-        for b in &self.0 {
-            if b.0.len() > 0 {
-                for l in &b.0 {
-                    println!("{:?}", l);
-                }
-            }
-        }
-        println!("------------------------------");
     }
 
     pub fn remove(&mut self, id: &GUID, node_id: &GUID) {
         let bucket_idx = Bucket::find_index(id, node_id);
         let bucket = &mut self.0[bucket_idx];
-        let node_idx = bucket.0.iter().position(|r| r.id == node_id.clone());
+        let node_idx = bucket.0.iter().position(|r| r.id == *node_id);
         if let Some(idx) = node_idx {
             bucket.0.remove(idx);
         }

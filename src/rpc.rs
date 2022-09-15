@@ -39,13 +39,12 @@ impl Rpc {
             loop {
                 let (n, _) = rpc.socket.recv_from(&mut buff).unwrap();
                 let msg: Message = bincode::deserialize(&buff[..n]).unwrap();
-                println!("received message: {}", msg);
                 match msg.msg {
                     MessageType::Terminate => {
                         sender.send(msg).unwrap();
                         break;
                     }
-                    MessageType::Request(ref req) => {
+                    MessageType::Request(_) => {
                         sender.send(msg.clone()).unwrap();
                     }
                     MessageType::Response(res) => {
@@ -57,7 +56,6 @@ impl Rpc {
     }
 
     fn response_handler(self, response: Response, req_id: String) {
-        println!("{:?}", response);
         thread::spawn(move || {
             let mut pending = self.pending.lock().unwrap();
             let sender = pending.get(&req_id);
